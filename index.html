@@ -13,7 +13,6 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; }
         .notes-container strong { color: #0f172a; font-weight: 800; background-color: #eef2ff; padding: 0 2px; border-radius: 3px; }
-        .sidebar-active { background-color: #f1f5f9; border-left: 4px solid #4f46e5; }
     </style>
 </head>
 <body>
@@ -23,7 +22,7 @@
         const { useState, useEffect, useRef } = React;
 
         const App = () => {
-            // CONFIGURACIÓN: PEGA TU LLAVE AQUÍ
+            // Tu API Key integrada
             const apiKey = "AIzaSyCrIhvy6CY6-FiF0u7kIdpAgc_rMdG8vec"; 
 
             const [transcript, setTranscript] = useState('');
@@ -117,17 +116,13 @@
                         setProgress(Math.round(((i + 1) / totalSegs) * 100));
                     }
                     setStatus('¡Transcripción lista!');
-                } catch (err) { setStatus('Error: Revisa tu API Key'); } finally { setLoading(false); }
+                } catch (err) { setStatus('Error en la API o Audio'); } finally { setLoading(false); }
             };
 
             const makeNotes = async () => {
                 setLoading(true); setStatus('IA creando apuntes estructurados...');
                 try {
-                    const prompt = `Analiza la transcripción y crea apuntes de clase profesionales. 
-                    Usa # para Títulos, ## para Subtítulos. 
-                    Resalta conceptos técnicos con **negritas**. 
-                    No uses emojis. Estructura: 1. Resumen. 2. Glosario. 3. Temas detallados. 4. Preguntas de examen.
-                    Texto: ${transcript}`;
+                    const prompt = `Analiza la transcripción y crea apuntes de clase profesionales. Usa # para Títulos, ## para Subtítulos. Resalta conceptos técnicos con **negritas**. No uses emojis. Estructura: 1. Resumen. 2. Glosario. 3. Temas detallados. 4. Preguntas de examen. Texto: ${transcript}`;
                     const res = await callGemini(prompt);
                     setNotes(res); setView('notes');
                     const historyItem = { id: Date.now(), title: "Clase " + new Date().toLocaleDateString(), transcript, notes: res };
@@ -139,9 +134,13 @@
 
             const copy = () => {
                 const t = view === 'transcript' ? transcript : notes;
-                navigator.clipboard.writeText(t).then(() => {
-                    setCopied(true); setTimeout(() => setCopied(false), 2000);
-                });
+                const el = document.createElement('textarea');
+                el.value = t;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                setCopied(true); setTimeout(() => setCopied(false), 2000);
             };
 
             const renderMD = (t) => {
@@ -149,9 +148,9 @@
                     if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-black text-slate-900 mb-6 border-b-4 border-indigo-600 pb-2">{line.replace('# ', '')}</h1>;
                     if (line.startsWith('## ')) return <h2 key={i} className="text-xl font-bold text-indigo-700 mt-8 mb-4 border-l-4 border-indigo-600 pl-3">{line.replace('## ', '')}</h2>;
                     const parts = line.split(/(\*\*.*?\*\*)/g);
-                    return <p key={i} className="mb-4 text-slate-700 leading-relaxed text-lg">
+                    return <div key={i} className="mb-4 text-slate-700 leading-relaxed text-lg text-justify">
                         {parts.map((p, pi) => p.startsWith('**') ? <strong key={pi}>{p.slice(2, -2)}</strong> : p)}
-                    </p>;
+                    </div>;
                 });
             };
 
@@ -184,7 +183,7 @@
                                 {!transcript && !loading && (
                                     <label className="block cursor-pointer group">
                                         <div className="border-4 border-dashed border-slate-200 rounded-[2rem] p-24 flex flex-col items-center hover:border-indigo-500 hover:bg-white transition-all shadow-sm">
-                                            <div className="bg-indigo-100 p-6 rounded-2xl mb-6 group-hover:scale-110 transition-transform"><i data-lucide="upload" size="40" className="text-indigo-600"></i></div>
+                                            <div className="bg-indigo-100 p-6 rounded-2xl mb-6 group-hover:scale-110 transition-transform"><i data-lucide="upload" className="text-indigo-600 w-10 h-10"></i></div>
                                             <span className="text-2xl font-black text-slate-800">Cargar Grabación</span>
                                         </div>
                                         <input type="file" className="hidden" accept="audio/*" onChange={handleFile} />
@@ -194,7 +193,9 @@
                                 {(loading || progress > 0) && (
                                     <div className="mb-10 bg-white p-8 rounded-[2rem] border shadow-sm">
                                         <div className="flex justify-between items-end mb-4">
-                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2"><i data-lucide="loader-2" className="animate-spin" size={14}></i> {status}</span>
+                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                                                <i data-lucide="loader-2" className="animate-spin w-4 h-4"></i> {status}
+                                            </span>
                                             <span className="text-4xl font-black">{progress}%</span>
                                         </div>
                                         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -207,12 +208,16 @@
                                     <div className="space-y-6">
                                         <div className="flex gap-2 p-1 bg-white rounded-2xl border shadow-sm max-w-fit mx-auto">
                                             <button onClick={() => setView('transcript')} className={`px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${view === 'transcript' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}>Literal</button>
-                                            <button onClick={notes ? () => setView('notes') : makeNotes} className={`px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${view === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}><i data-lucide="sparkles" size="14"></i> Apuntes</button>
-                                            <button onClick={copy} className="p-2 border rounded-xl hover:bg-slate-50">{copied ? <i data-lucide="check-circle" className="text-emerald-500"></i> : <i data-lucide="copy"></i>}</button>
+                                            <button onClick={notes ? () => setView('notes') : makeNotes} className={`px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${view === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}><i data-lucide="sparkles" className="w-4 h-4"></i> Apuntes</button>
+                                            <button onClick={copy} className="p-2 border rounded-xl hover:bg-slate-50">{copied ? <i data-lucide="check-circle" className="text-emerald-500 w-5 h-5"></i> : <i data-lucide="copy" className="w-5 h-5"></i>}</button>
                                         </div>
 
                                         <div className="bg-white border rounded-[2.5rem] p-12 md:p-20 shadow-2xl relative min-h-[600px] notes-container">
-                                            {view === 'transcript' ? <div className="whitespace-pre-wrap text-slate-800 leading-relaxed text-lg">{transcript}</div> : <div>{renderMD(notes)}</div>}
+                                            {view === 'transcript' ? (
+                                                <div className="whitespace-pre-wrap text-slate-800 leading-relaxed text-lg text-justify">{transcript}</div>
+                                            ) : (
+                                                <div>{renderMD(notes)}</div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
